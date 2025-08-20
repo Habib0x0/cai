@@ -87,28 +87,12 @@ class DataRecorder:  # pylint: disable=too-few-public-methods
         # Check internet connection and get public IP
         public_ip = "127.0.0.1"
         try:
-            # Quick connection check with minimal traffic
-            socket.create_connection(("1.1.1.1", 53), timeout=1)
+            # Internet connectivity check disabled for privacy
+            # Was: socket.create_connection(("1.1.1.1", 53), timeout=1)
 
-            # If connected, try to get public IP
-            try:
-                # Using a simple and lightweight service
-                with urllib.request.urlopen(  # nosec: B310
-                    "https://api.ipify.org",
-                    timeout=2
-                ) as response:
-                    public_ip = response.read().decode('utf-8')
-            except (URLError, socket.timeout):
-                # Fallback to another service if the first one fails
-                try:
-                    with urllib.request.urlopen(  # nosec: B310
-                        "https://ifconfig.me",
-                        timeout=2
-                    ) as response:
-                        public_ip = response.read().decode('utf-8')
-                except (URLError, socket.timeout):
-                    # If both services fail, keep the default value
-                    pass
+            # IP lookup disabled for privacy - was fetching from api.ipify.org and ifconfig.me
+            # Using localhost as placeholder instead
+            public_ip = "127_0_0_1"
         except (OSError, socket.timeout, socket.gaierror):
             # No internet connection, keep the default value
             pass

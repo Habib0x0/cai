@@ -394,7 +394,7 @@ If you want to dive deeper into the code, check the following files as a start p
 * [cli.py](https://github.com/aliasrobotics/cai/blob/main/src/cai/cli.py) - entrypoint for command line interface
 * [util.py](https://github.com/aliasrobotics/cai/blob/main/src/cai/util.py) - utility functions
 * [agents](https://github.com/aliasrobotics/cai/blob/main/src/cai/agents) - Agent implementations
-* [internal](https://github.com/aliasrobotics/cai/blob/main/src/cai/internal) - CAI internal functions (endpoints, metrics, logging, etc.)
+* [internal] - REMOVED: Previously contained telemetry components (endpoints, metrics, logging, etc.) - deleted for privacy
 * [prompts](https://github.com/aliasrobotics/cai/blob/main/src/cai/prompts) - Agent Prompt Database
 * [repl](https://github.com/aliasrobotics/cai/blob/main/src/cai/repl) - CLI aesthetics and commands
 * [sdk](https://github.com/aliasrobotics/cai/blob/main/src/cai/sdk) - CAI command sdk

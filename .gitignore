@@ -165,3 +165,6 @@ pentestperf
 venv*
 
 .claude
+crt_subdomains.py
+exploit.py
+uv.lock
