@@ -80,6 +80,8 @@ from cai.util import (
     create_agent_streaming_context,
     finish_agent_streaming,
     get_ollama_api_base,
+    get_lmstudio_api_base,
+    get_local_model_api_base,
     start_active_timer,
     start_claude_thinking_if_applicable,
     start_idle_timer,
@@ -114,7 +116,7 @@ class CustomResponseUsage(ResponseUsage):
         return self.output_tokens
 
 
-from cai.internal.components.metrics import process_intermediate_logs
+# Telemetry import removed for privacy - was: from cai.internal.components.metrics import process_intermediate_logs
 
 from .. import _debug
 from ..agent_output import AgentOutputSchema
@@ -376,8 +378,10 @@ class OpenAIChatCompletionsModel(Model):
     ) -> None:
         self.model = model
         self._client = openai_client
-        # Check if we're using OLLAMA models
-        self.is_ollama = os.getenv("OLLAMA") is not None and os.getenv("OLLAMA").lower() != "false"
+        # Check if we're using local models (OLLAMA or LM Studio)
+        self.is_ollama = (os.getenv("OLLAMA") is not None and os.getenv("OLLAMA").lower() != "false") or \
+                        (os.getenv("LMSTUDIO_API_BASE") is not None) or \
+                        (os.getenv("OPENAI_BASE_URL") is not None and "localhost" in os.getenv("OPENAI_BASE_URL", ""))
         self.empty_content_error_shown = False
 
         # Track interaction counter and token totals for cli display
@@ -2521,8 +2525,10 @@ class OpenAIChatCompletionsModel(Model):
         tracing: ModelTracing,
         stream: bool = False,
     ) -> ChatCompletion | tuple[Response, AsyncStream[ChatCompletionChunk]]:
-        # start by re-fetching self.is_ollama
-        self.is_ollama = os.getenv("OLLAMA") is not None and os.getenv("OLLAMA").lower() == "true"
+        # start by re-fetching self.is_ollama (now includes LM Studio)
+        self.is_ollama = (os.getenv("OLLAMA") is not None and os.getenv("OLLAMA").lower() == "true") or \
+                        (os.getenv("LMSTUDIO_API_BASE") is not None) or \
+                        (os.getenv("OPENAI_BASE_URL") is not None and "localhost" in os.getenv("OPENAI_BASE_URL", ""))
 
         # IMPORTANT: Include existing message history for context
         converted_messages = []
@@ -2939,7 +2945,7 @@ class OpenAIChatCompletionsModel(Model):
                             print(qwen_e)
                             # If that fails, try our direct OpenAI approach
                             qwen_params = kwargs.copy()
-                            qwen_params["api_base"] = get_ollama_api_base()
+                            qwen_params["api_base"] = get_local_model_api_base()
                             qwen_params["custom_llm_provider"] = "openai"  # Use openai provider
 
                             # Make sure tools are passed
@@ -3309,9 +3315,9 @@ class OpenAIChatCompletionsModel(Model):
         parallel_tool_calls: bool,
     ) -> ChatCompletion | tuple[Response, AsyncStream[ChatCompletionChunk]]:
         """
-        Fetches a response from an Ollama or Qwen model using LiteLLM, ensuring
-        that the 'format' parameter is not set to a JSON string, which can cause
-        issues with the Ollama API.
+        Fetches a response from a local model (Ollama, LM Studio, or Qwen) using LiteLLM,
+        ensuring that the 'format' parameter is not set to a JSON string, which can cause
+        issues with local model APIs.
 
         Args:
             kwargs (dict): Parameters for the completion request.
@@ -3324,7 +3330,7 @@ class OpenAIChatCompletionsModel(Model):
             ChatCompletion or tuple[Response, AsyncStream[ChatCompletionChunk]]:
                 The completion response or a tuple for streaming.
         """
-        # Extract only supported parameters for Ollama
+        # Extract only supported parameters for local models (Ollama/LM Studio)
         ollama_supported_params = {
             "model": kwargs.get("model", ""),
             "messages": kwargs.get("messages", []),
@@ -3354,7 +3360,7 @@ class OpenAIChatCompletionsModel(Model):
         # Check if this is a Qwen model
         model_str = str(self.model).lower()
         is_qwen = "qwen" in model_str
-        api_base = get_ollama_api_base()
+        api_base = get_local_model_api_base()
 
         if stream:
             response = Response(
@@ -3491,12 +3497,8 @@ class OpenAIChatCompletionsModel(Model):
 
     def _intermediate_logs(self):
         """Intermediate logging if conditions are met."""
-        if (
-            self.logger
-            and self.interaction_counter > 0
-            and self.interaction_counter % self.INTERMEDIATE_LOG_INTERVAL == 0
-        ):
-            process_intermediate_logs(self.logger.filename, self.logger.session_id)
+        # Intermediate telemetry logging disabled for privacy
+        # Was: process_intermediate_logs(self.logger.filename, self.logger.session_id)
 
     def _get_client(self) -> AsyncOpenAI:
         if self._client is None:

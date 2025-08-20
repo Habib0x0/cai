@@ -12,7 +12,7 @@ import requests  # pylint: disable=import-error
 from rich.console import Console  # pylint: disable=import-error
 from rich.table import Table  # pylint: disable=import-error
 from rich.panel import Panel  # pylint: disable=import-error
-from cai.util import get_ollama_api_base, COST_TRACKER
+from cai.util import get_ollama_api_base, get_lmstudio_api_base, get_local_model_api_base, COST_TRACKER
 from cai.repl.commands.base import Command, register_command
 
 console = Console()
@@ -272,16 +272,35 @@ class ModelCommand(Command):
                     model["description"]
                 )
 
-            # Ollama models (if available)
-            # pylint: disable=too-many-nested-blocks
+            # Local models (Ollama and LM Studio)
+            local_models = []
+            
+            # Try LM Studio first
+            try:
+                lmstudio_base = get_lmstudio_api_base()
+                response = requests.get(f"{lmstudio_base}/models", timeout=1)
+                
+                if response.status_code == 200:
+                    data = response.json()
+                    if 'data' in data:
+                        for model in data['data']:
+                            model_name = model.get('id', '')
+                            if model_name:
+                                local_models.append({
+                                    'name': model_name,
+                                    'source': 'LM Studio',
+                                    'size': model.get('size', 'Unknown'),
+                                    'modified_at': model.get('created', 'Unknown')
+                                })
+            except Exception:
+                pass  # LM Studio not available
+            
+            # Try Ollama
             try:
                 # Get Ollama models with a short timeout to prevent hanging
                 api_base = get_ollama_api_base()
                 ollama_base = api_base.replace('/v1', '')
-                response = requests.get(
-                    f"{ollama_base}/api/tags",
-                    timeout=1
-                )
+                response = requests.get(f"{ollama_base}/api/tags", timeout=1)
 
                 if response.status_code == 200:
                     data = response.json()
@@ -293,41 +312,55 @@ class ModelCommand(Command):
                         # Fallback for older Ollama versions
                         ollama_models = data.get('items', [])
 
-                    # Add Ollama models to the table with continuing numbers
-                    # (after predefined models + LiteLLM models in numbering)
-                    start_index = len(predefined_model_names) + len(litellm_model_names) + 1
-                    for i, model in enumerate(ollama_models, start_index):
+                    for model in ollama_models:
                         model_name = model.get('name', '')
-                        model_size = model.get('size', 0)
-                        # Convert size to human-readable format
-                        size_str = ""
-                        if model_size:
-                            size_mb = model_size / (1024 * 1024)
-                            if model_size < 1024 * 1024 * 1024:
-                                size_str = f"{size_mb:.1f} MB"
-                            else:
-                                size_gb = size_mb / 1024
-                                size_str = f"{size_gb:.1f} GB"
+                        if model_name:
+                            local_models.append({
+                                'name': model_name,
+                                'source': 'Ollama',
+                                'size': model.get('size', 'Unknown'),
+                                'modified_at': model.get('modified_at', 'Unknown')
+                            })
+            except Exception:
+                pass  # Ollama not available
 
-                        # Ollama models are free to use locally
-                        model_description = "Local model"
-                        if size_str:
-                            model_description += f" ({size_str})"
+            # Add local models to the table
+            start_index = len(predefined_model_names) + len(litellm_model_names) + 1
+            for i, model in enumerate(local_models, start_index):
+                model_name = model.get('name', '')
+                model_source = model.get('source', 'Local')
+                model_size = model.get('size', 0)
+                
+                # Convert size to human-readable format
+                size_str = ""
+                if model_size and isinstance(model_size, (int, float)):
+                    size_mb = model_size / (1024 * 1024)
+                    if model_size < 1024 * 1024 * 1024:
+                        size_str = f"{size_mb:.1f} MB"
+                    else:
+                        size_gb = size_mb / 1024
+                        size_str = f"{size_gb:.1f} GB"
 
-                        model_table.add_row(
-                            str(i),
-                            model_name,
-                            "Ollama",
-                            "Local",
-                            "Free",
-                            "Free",
-                            model_description
-                        )
-                        # Add to cached models for numeric selection
-                        self.cached_models.append(model_name)
-                        self.cached_model_numbers[str(i)] = model_name
-            except Exception:  # pylint: disable=broad-except
-                # Add a note about Ollama if we couldn't fetch models
+                # Local models are free to use
+                model_description = f"Local {model_source.lower()} model"
+                if size_str:
+                    model_description += f" ({size_str})"
+
+                model_table.add_row(
+                    str(i),
+                    model_name,
+                    model_source,
+                    "Local",
+                    "Free",
+                    "Free",
+                    model_description
+                )
+                # Add to cached models for numeric selection
+                self.cached_models.append(model_name)
+                self.cached_model_numbers[str(i)] = model_name
+            
+            # If no local models found, add placeholder entries
+            if not local_models:
                 start_index = len(predefined_model_names) + len(litellm_model_names) + 1
                 model_table.add_row(
                     str(start_index),

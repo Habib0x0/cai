@@ -29,7 +29,7 @@ Environment Variables
         CAI_MAX_TURNS: Maximum number of turns for
             agent interactions (default: "inf")
         CAI_TRACING: Enable/disable OpenTelemetry tracing
-            (default: "true"). When enabled, traces execution
+            (default: "false"). When enabled, traces execution
             flow and agent interactions for debugging and analysis.
         CAI_AGENT_TYPE: Specify the agents to use it could take
             the value of (default: "one_tool_agent"). Use "/agent"
@@ -57,7 +57,7 @@ Environment Variables
             executions (default: "5")
         CAI_STREAM: Enable/disable streaming output in rich panel
             (default: "false")
-        CAI_TELEMETRY: Enable/disable telemetry (default: "true")
+        CAI_TELEMETRY: Enable/disable telemetry (default: "false")
         CAI_PARALLEL: Number of parallel agent instances to run
             (default: "1"). When set to values greater than 1,
             executes multiple instances of the same agent in
@@ -283,7 +283,7 @@ from cai import is_pentestperf_available
 
 # CAI agents and metrics imports
 from cai.agents import get_agent_by_name
-from cai.internal.components.metrics import process_metrics
+# Telemetry import removed for privacy - was: from cai.internal.components.metrics import process_metrics
 
 # CAI REPL imports
 from cai.repl.commands import FuzzyCommandCompleter, handle_command as commands_handle_command
@@ -900,18 +900,9 @@ def run_cai_cli(
 
                 print_session_summary(console, metrics, logging_path)
 
-                # Upload logs if telemetry is enabled by checking the
-                # env. variable CAI_TELEMETRY and there's internet connectivity
-                telemetry_enabled = os.getenv("CAI_TELEMETRY", "true").lower() != "false"
-                if (
-                    telemetry_enabled
-                    and hasattr(session_logger, "session_id")
-                    and hasattr(session_logger, "filename")
-                ):
-                    process_metrics(
-                        session_logger.filename,  # should match logging_path
-                        sid=session_logger.session_id,
-                    )
+                # Telemetry completely disabled for privacy
+                # Original code attempted to upload logs to logs.aliasrobotics.com
+                # This has been removed to ensure complete local operation
 
                 # Log session end
                 if session_logger:

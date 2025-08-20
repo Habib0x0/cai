@@ -92,10 +92,27 @@ def update_toolbar_in_background():
             active_env_name, active_env_icon, active_env_color = "Host System", "💻", "ansiblue"
 
 
-        # Get Ollama information
-        ollama_status = "unavailable"
+        # Get local model server information (LM Studio + Ollama)
+        local_status = "unavailable"
+        local_models_count = 0
+        local_sources = []
+        
+        # Try LM Studio
         try:
-            # Get Ollama models with a short timeout to prevent hanging
+            lmstudio_api_base = os.getenv("LMSTUDIO_API_BASE", "http://localhost:1234/v1")
+            response = requests.get(f"{lmstudio_api_base}/models", timeout=0.5)
+            
+            if response.status_code == 200:
+                data = response.json()
+                lmstudio_models = len(data.get('data', []))
+                if lmstudio_models > 0:
+                    local_models_count += lmstudio_models
+                    local_sources.append(f"LMS:{lmstudio_models}")
+        except Exception:  # pylint: disable=broad-except
+            pass
+        
+        # Try Ollama
+        try:
             api_base = os.getenv(
                 "OLLAMA_API_BASE",
                 "http://host.docker.internal:8000/v1")
@@ -109,10 +126,16 @@ def update_toolbar_in_background():
                 else:
                     # Fallback for older Ollama versions
                     ollama_models = len(data.get('items', []))
-                ollama_status = f"{ollama_models} models"
+                if ollama_models > 0:
+                    local_models_count += ollama_models
+                    local_sources.append(f"OLL:{ollama_models}")
         except Exception:  # pylint: disable=broad-except
-            # Silently fail if Ollama is not available
-            ollama_status = "unavailable"
+            pass
+        
+        if local_models_count > 0:
+            local_status = f"{local_models_count} models ({', '.join(local_sources)})"
+        else:
+            local_status = "unavailable"
 
         # Get current time for the toolbar refresh indicator
         current_time = datetime.datetime.now().strftime("%H:%M")
@@ -205,9 +228,11 @@ def update_toolbar_in_background():
                 f"<ansigray>{current_time_with_tz}</ansigray>"
             )
         else:  # Full mode
+            local_color = "ansigreen" if local_models_count > 0 else "ansigray"
             toolbar_cache['html'] = HTML(
                 f"<{active_env_color}><b>ENV:</b> {active_env_icon} {active_env_name}</{active_env_color}> | "
                 f"<ansiyellow><b>Model:</b></ansiyellow> <ansigreen>{os.getenv('CAI_MODEL', 'default')}</ansigreen> | "
+                f"<ansicyan><b>Local:</b></ansicyan> <{local_color}>{local_status}</{local_color}> | "
                 f"<ansicyan><b>AutoCompact:</b></ansicyan> <{auto_compact_color}>{auto_compact_str}</{auto_compact_color}> | "
                 f"<ansicyan><b>Memory:</b></ansicyan> <{memory_color}>{memory_str}</{memory_color}> | "
                 f"<ansicyan><b>Stream:</b></ansicyan> <{stream_color}>{stream_str}</{stream_color}> | "

@@ -25,7 +25,7 @@ from prompt_toolkit.formatted_text import HTML  # pylint: disable=import-error
 from prompt_toolkit.styles import Style  # pylint: disable=import-error
 from rich.console import Console  # pylint: disable=import-error
 
-from cai.util import get_ollama_api_base
+from cai.util import get_ollama_api_base, get_lmstudio_api_base
 from cai.repl.commands.base import (
     COMMANDS,
     COMMAND_ALIASES
@@ -178,6 +178,20 @@ class FuzzyCommandCompleter(Completer):
                     all_models.extend(litellm_models)
             except Exception:  # pylint: disable=broad-except
                 # Silently fail if LiteLLM is not available
+                pass
+
+            # Fetch LM Studio models
+            try:
+                lmstudio_base = get_lmstudio_api_base()
+                response = requests.get(f"{lmstudio_base}/models", timeout=0.5)
+                
+                if response.status_code == 200:
+                    data = response.json()
+                    if 'data' in data:
+                        lmstudio_models = [model.get('id', '') for model in data['data']]
+                        all_models.extend(lmstudio_models)
+            except Exception:  # pylint: disable=broad-except
+                # Silently fail if LM Studio is not available
                 pass
 
             # Fetch Ollama models

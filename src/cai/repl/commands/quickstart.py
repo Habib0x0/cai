@@ -98,6 +98,30 @@ class QuickstartCommand(Command):
             pass
         return []
 
+    def check_lmstudio_models(self) -> List[str]:
+        """Check available LM Studio models."""
+        try:
+            import httpx
+            with httpx.Client(timeout=2.0) as client:
+                response = client.get("http://localhost:1234/v1/models")
+                if response.status_code == 200:
+                    data = response.json()
+                    return [model['id'] for model in data.get('data', [])]
+        except ImportError:
+            # Fallback if httpx not available
+            try:
+                import urllib.request
+                import json
+                with urllib.request.urlopen("http://localhost:1234/v1/models", timeout=2) as response:
+                    if response.status == 200:
+                        data = json.loads(response.read())
+                        return [model['id'] for model in data.get('data', [])]
+            except:
+                pass
+        except:
+            pass
+        return []
+
     def get_provider_name(self, api_key: str) -> str:
         """Get a formatted provider name from API key name.
         
@@ -209,40 +233,58 @@ class QuickstartCommand(Command):
                 )
             )
 
-        # Step 2: Local Models (Ollama)
+        # Step 2: Local Models (LM Studio & Ollama)
         console.print("\n[bold yellow]🖥️  Step 2: Local Models (Optional)[/bold yellow]\n")
-        console.print("For local model support, CAI can use Ollama:")
+        console.print("For local model support, CAI can use LM Studio or Ollama:")
         
-        # Check Ollama endpoints
-        ollama_table = Table(show_header=True, header_style="bold")
-        ollama_table.add_column("Endpoint", style="cyan")
-        ollama_table.add_column("Status", style="green")
-        ollama_table.add_column("Models", style="yellow")
+        # Check local model endpoints
+        local_table = Table(show_header=True, header_style="bold")
+        local_table.add_column("Service", style="magenta")
+        local_table.add_column("Endpoint", style="cyan")
+        local_table.add_column("Status", style="green")
+        local_table.add_column("Models", style="yellow")
+        
+        # Check LM Studio
+        lms_accessible, lms_status = self.check_local_endpoint("http://localhost:1234")
+        lms_models = self.check_lmstudio_models() if lms_accessible else []
+        lms_model_str = f"{len(lms_models)} models" if lms_models else "N/A"
+        local_table.add_row("LM Studio", "http://localhost:1234", lms_status, lms_model_str)
         
         # Check standard Ollama port
-        is_accessible, status = self.check_local_endpoint("http://localhost:11434")
-        models = self.check_ollama_models() if is_accessible else []
-        model_str = f"{len(models)} models" if models else "N/A"
-        ollama_table.add_row("http://localhost:11434", status, model_str)
+        ollama_accessible, ollama_status = self.check_local_endpoint("http://localhost:11434")
+        ollama_models = self.check_ollama_models() if ollama_accessible else []
+        ollama_model_str = f"{len(ollama_models)} models" if ollama_models else "N/A"
+        local_table.add_row("Ollama", "http://localhost:11434", ollama_status, ollama_model_str)
         
         # Check Docker internal
         is_docker_accessible, docker_status = self.check_local_endpoint("http://host.docker.internal:11434")
-        ollama_table.add_row("http://host.docker.internal:11434", docker_status, "Docker access")
+        local_table.add_row("Ollama (Docker)", "http://host.docker.internal:11434", docker_status, "Docker access")
         
-        console.print(ollama_table)
+        console.print(local_table)
         
-        if is_accessible and models:
-            console.print(f"\n[green]Available Ollama models:[/green] {', '.join(models[:5])}")
-            if len(models) > 5:
-                console.print(f"[dim]... and {len(models) - 5} more[/dim]")
+        # Show available models
+        if lms_accessible and lms_models:
+            console.print(f"\n[green]Available LM Studio models:[/green] {', '.join(lms_models[:3])}")
+            if len(lms_models) > 3:
+                console.print(f"[dim]... and {len(lms_models) - 3} more[/dim]")
         
+        if ollama_accessible and ollama_models:
+            console.print(f"\n[green]Available Ollama models:[/green] {', '.join(ollama_models[:3])}")
+            if len(ollama_models) > 3:
+                console.print(f"[dim]... and {len(ollama_models) - 3} more[/dim]")
+        
+        # Setup instructions
         console.print(
             Panel(
+                "[cyan]To use LM Studio:[/cyan]\n"
+                "1. Download: [yellow]https://lmstudio.ai/[/yellow]\n"
+                "2. Load a model and start the server\n"
+                "3. Set in .env: [yellow]LMSTUDIO_API_BASE='http://localhost:1234/v1'[/yellow]\n"
+                "4. Use in CAI: [yellow]/model your-model-name[/yellow]\n\n"
                 "[cyan]To use Ollama:[/cyan]\n"
                 "1. Install: [yellow]curl -fsSL https://ollama.com/install.sh | sh[/yellow]\n"
                 "2. Pull a model: [yellow]ollama pull llama3.1[/yellow]\n"
-                "3. Set in .env: "
-                "[yellow]OLLAMA_API_BASE='http://127.0.0.1:11434/v1'[/yellow]\n"
+                "3. Set in .env: [yellow]OLLAMA_API_BASE='http://127.0.0.1:11434/v1'[/yellow]\n"
                 "4. Use in CAI: [yellow]/model llama3.1[/yellow]",
                 border_style="cyan",
             )

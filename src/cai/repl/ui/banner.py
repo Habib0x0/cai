@@ -74,7 +74,21 @@ def get_supported_models_count():
                 if model_info.get("supports_function_calling", False)
             )
 
-            # Try to get Ollama models count
+            # Try to get local models count (LM Studio + Ollama)
+            local_models_count = 0
+            
+            # Try LM Studio first
+            try:
+                lmstudio_api_base = os.getenv("LMSTUDIO_API_BASE", "http://localhost:1234/v1")
+                lmstudio_response = requests.get(f"{lmstudio_api_base}/models", timeout=1)
+                
+                if lmstudio_response.status_code == 200:
+                    lmstudio_data = lmstudio_response.json()
+                    local_models_count += len(lmstudio_data.get('data', []))
+            except Exception:  # pylint: disable=broad-except
+                logging.debug("Could not fetch LM Studio models")
+            
+            # Try Ollama
             try:
                 ollama_api_base = os.getenv(
                     "OLLAMA_API_BASE",
@@ -87,15 +101,16 @@ def get_supported_models_count():
 
                 if ollama_response.status_code == 200:
                     ollama_data = ollama_response.json()
-                    ollama_models = len(
+                    local_models_count += len(
                         ollama_data.get(
                             'models', ollama_data.get('items', [])
                         )
                     )
-                    return function_calling_models + ollama_models
             except Exception:  # pylint: disable=broad-except
                 logging.debug("Could not fetch Ollama models")
-                # Continue without Ollama models
+            
+            if local_models_count > 0:
+                return function_calling_models + local_models_count
 
             return function_calling_models
     except Exception:  # pylint: disable=broad-except

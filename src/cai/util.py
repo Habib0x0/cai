@@ -748,6 +748,47 @@ def get_ollama_api_base():
     return os.environ.get("OLLAMA_API_BASE", "http://localhost:8000/v1")
 
 
+def get_lmstudio_api_base():
+    """Get the LM Studio API base URL from environment variable or default to localhost:1234."""
+    return os.environ.get("LMSTUDIO_API_BASE", "http://localhost:1234/v1")
+
+
+def get_local_model_api_base():
+    """
+    Get the appropriate local model API base URL.
+    Checks for LM Studio first, then Ollama, with fallback priorities.
+    """
+    # Check if LM Studio is explicitly configured
+    if os.environ.get("LMSTUDIO_API_BASE"):
+        return get_lmstudio_api_base()
+    
+    # Check if Ollama is explicitly configured
+    if os.environ.get("OLLAMA_API_BASE"):
+        return get_ollama_api_base()
+    
+    # Auto-detect based on common ports
+    import requests
+    
+    # Try LM Studio default port first
+    try:
+        response = requests.get("http://localhost:1234/v1/models", timeout=1)
+        if response.status_code == 200:
+            return "http://localhost:1234/v1"
+    except:
+        pass
+    
+    # Try Ollama default port
+    try:
+        response = requests.get("http://localhost:11434/v1/models", timeout=1)
+        if response.status_code == 200:
+            return "http://localhost:11434/v1"
+    except:
+        pass
+    
+    # Fallback to Ollama default
+    return get_ollama_api_base()
+
+
 def load_prompt_template(template_path):
     """
     Load a prompt template from the package resources.
